@@ -1,5 +1,5 @@
 
-**Q：激活虚拟环境**
+# Q：激活虚拟环境
 
 你已经找到了虚拟环境的路径：
 
@@ -77,8 +77,44 @@ D:\yixin\yixin_test\.venv\Scripts\python.exe
 
 ---
 ---
-**Q：路由路径跟踪**
+# Q：路由路径跟踪
 ```cmd
 tracert <对方 IP>
 ```
 
+# Q： 时间戳脚本
+
+```cmd
+:: 在文件名前面添加当前时间（把文件拖到该.bat脚本上使用）
+
+@echo off
+setlocal enabledelayedexpansion
+
+:: 获取当前时间信息（兼容多语言系统）
+for /f "tokens=1-3 delims=/- " %%a in ("%date%") do (
+    set "yyyy=%%a"
+    set "mm=%%b"
+    set "dd=%%c"
+)
+
+for /f "tokens=1-3 delims=:." %%a in ("%time%") do (
+    set "hh=%%a"
+    set "mi=%%b"
+    set "ss=%%c"
+)
+
+:: 补零，避免1位数导致格式混乱
+set "hh=0!hh!"
+set "hh=!hh:~-2!"
+set "mi=0!mi!"
+set "mi=!mi:~-2!"
+set "ss=0!ss!"
+set "ss=!ss:~-2!"
+
+:: 组装最终时间戳
+set "timestamp=!yyyy!!mm!!dd!_!hh!!mi!!ss!"
+
+:: 重命名文件：加时间戳前缀
+ren "%~1" "!timestamp!_%~nx1"
+
+```
