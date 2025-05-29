@@ -1198,3 +1198,140 @@ sudo systemctl daemon-reload
 sudo systemctl restart docker
 
 ```
+
+# Q：dockerfile怎么使用
+很好，下面我一步一步教你如何**使用 Dockerfile 构建并运行容器镜像**，适用于你现在这种需要构建“带桌面和机器学习环境”的情况。
+
+---
+
+## 🧱 一、准备 Dockerfile
+
+1. 新建一个目录作为项目目录：
+    
+
+```bash
+mkdir dorowu-ml && cd dorowu-ml
+```
+
+2. 使用文本编辑器创建 `Dockerfile` 文件：
+    
+
+```bash
+nano Dockerfile
+```
+
+3. 把你要用的 Dockerfile 内容（比如我们上面给你的）粘贴进去，然后保存退出。
+    
+
+---
+
+## ⚙️ 二、构建镜像
+
+在包含 `Dockerfile` 的目录中运行：
+
+```bash
+docker build -t dorowu-ml-cu122 .
+```
+
+说明：
+
+|命令部分|含义|
+|---|---|
+|`docker build`|构建镜像命令|
+|`-t dorowu-ml-cu122`|给镜像起个名字（`tag`）|
+|`.`|表示当前目录中的 Dockerfile 是构建源|
+
+如果你看到：
+
+```
+Successfully built <image-id>
+Successfully tagged dorowu-ml-cu122:latest
+```
+
+就说明构建成功 ✅。
+
+---
+
+## 🚀 三、运行镜像并进入容器（支持 GPU + 桌面）
+
+运行容器：
+
+```bash
+docker run -d \
+  --name ml-desktop \
+  --gpus all \
+  -p 6080:80 \
+  -p 5901:5901 \
+  dorowu-ml-cu122
+```
+
+解释：
+
+|参数|说明|
+|---|---|
+|`-d`|后台运行容器|
+|`--name ml-desktop`|指定容器名称|
+|`--gpus all`|允许使用所有 GPU|
+|`-p 6080:80`|将 noVNC 网页访问端口映射出来（浏览器访问容器桌面）|
+|`-p 5901:5901`|将 VNC 客户端访问端口映射出来|
+|`dorowu-ml-cu122`|使用你刚构建的镜像|
+
+---
+
+## 🌐 四、访问容器桌面
+
+### ✅ 方法 1：通过浏览器访问
+
+打开浏览器访问：
+
+```
+http://<你的主机 IP>:6080
+```
+
+你会看到一个 Ubuntu 桌面界面！
+
+### ✅ 方法 2：通过 VNC 客户端访问
+
+使用 RealVNC、TigerVNC 等工具连接：
+
+```
+<你的主机 IP>:5901
+```
+
+默认用户名 `user`，密码 `pass`（可配置）。
+
+---
+
+## 🔁 五、管理容器命令
+
+|功能|命令|
+|---|---|
+|查看正在运行的容器|`docker ps`|
+|停止容器|`docker stop ml-desktop`|
+|启动容器|`docker start ml-desktop`|
+|删除容器|`docker rm ml-desktop`|
+|删除镜像|`docker rmi dorowu-ml-cu122`|
+
+---
+
+## ❓六、检查容器内 GPU 状态
+
+进入容器后运行：
+
+```bash
+python3 -c "import torch; print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0))"
+```
+
+---
+
+## 📦 七、如果你修改了 Dockerfile，要重新构建镜像：
+
+```bash
+docker build -t dorowu-ml-cu122 .
+```
+
+然后用 `docker rm` 删除旧容器，`docker run` 创建新容器。
+
+---
+
+是否需要我为你准备一个 `.sh` 一键构建并运行的脚本？这样你可以一条命令搞定。
