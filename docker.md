@@ -1335,3 +1335,524 @@ docker build -t dorowu-ml-cu122 .
 ---
 
 是否需要我为你准备一个 `.sh` 一键构建并运行的脚本？这样你可以一条命令搞定。
+
+# Q：容器怎么创建，怎么停止运行，怎么重新运行
+Docker 容器的创建、停止和重新运行是最基本也最常用的操作之一。以下是完整讲解和示例：
+
+---
+
+## ✅ 一、创建容器（`docker run`）
+
+### ➤ 命令格式：
+
+```bash
+docker run [OPTIONS] IMAGE [COMMAND]
+```
+
+### ➤ 常见选项说明：
+
+|参数|含义|
+|---|---|
+|`--name`|为容器命名，便于管理|
+|`-d`|后台运行（detached）|
+|`-it`|交互模式（可进入终端）|
+|`-p 主机端口:容器端口`|映射端口|
+|`-v 宿主路径:容器路径`|映射目录|
+|`--gpus all`|使用所有 GPU（需安装 NVIDIA Container Toolkit）|
+
+### ➤ 示例：
+
+```bash
+docker run -d \
+  --name mycontainer \
+  -p 8080:80 \
+  -v $HOME:/workspace \
+  myimage
+```
+
+---
+
+## ⏹ 二、停止容器（`docker stop`）
+
+### ➤ 命令格式：
+
+```bash
+docker stop <容器名或容器ID>
+```
+
+### ➤ 示例：
+
+```bash
+docker stop mycontainer
+```
+
+> 这会向容器内进程发送 `SIGTERM` 信号，若 10 秒未退出则强制 `SIGKILL`
+
+---
+
+## 🔁 三、重新启动容器（`docker start`）
+
+### ➤ 命令格式：
+
+```bash
+docker start <容器名或容器ID>
+```
+
+> 如果容器上次是用 `-d` 启动的，它会在后台运行。如果你想进入终端看输出：
+
+```bash
+docker start -ai <容器名>
+```
+
+---
+
+## ✅ 四、查看容器状态
+
+```bash
+docker ps -a
+```
+
+- 显示所有容器（运行中和已退出）
+    
+- `STATUS` 一列会告诉你是 `Exited` 还是 `Up`
+    
+
+---
+
+## ✅ 五、进入运行中的容器
+
+```bash
+docker exec -it <容器名> bash
+```
+
+或者：
+
+```bash
+docker attach <容器名>
+```
+
+（注意 `attach` 会直接进入容器主进程，不推荐退出方式）
+
+---
+
+## ✅ 六、彻底删除容器
+
+```bash
+docker rm <容器名>
+```
+
+如果容器正在运行，需加 `-f`：
+
+```bash
+docker rm -f <容器名>
+```
+
+---
+
+## ✅ 总结命令表：
+
+|动作|命令|
+|---|---|
+|创建容器|`docker run ...`|
+|停止容器|`docker stop 容器名`|
+|重新运行|`docker start 容器名`|
+|查看所有容器|`docker ps -a`|
+|删除容器|`docker rm 容器名`|
+|进入容器|`docker exec -it 容器名 bash`|
+
+---
+
+是否需要我为你整理一个 bash 脚本，一键执行“创建 + 启动 + 进入”整个过程？
+# Q：挂载目录和挂载磁盘有什么区别，挂载目录的话在容器内可以格式化磁盘吗
+这是个非常关键的问题，涉及到 **挂载目录 vs 挂载磁盘块设备** 的本质区别，以及是否可以在容器内格式化磁盘。我们来详细拆解：
+
+---
+
+## ✅ 一、你当前使用的是 **挂载目录**（bind mount）
+
+```bash
+-v $HOME:/workspace
+```
+
+这是将宿主机某个**目录**挂载进容器中，叫做 **bind mount**，本质是映射某个路径（目录树）而不是设备。
+
+---
+
+### 🔒 所以：
+
+> ✅ 容器**只能访问这个目录的文件内容**，不能访问宿主机的磁盘块设备（如 `/dev/sda`）
+
+> ❌ 容器**无法格式化宿主机磁盘**，因为你并**没有挂载块设备或裸设备文件**
+
+---
+
+## ❓ 那什么叫“挂载磁盘”？
+
+这通常指将宿主机的磁盘设备（如 `/dev/sdb`、`/dev/nvme0n1`）挂入容器，例如：
+
+```bash
+docker run --rm -it \
+  --device=/dev/sdb \
+  --cap-add=SYS_ADMIN \
+  --name test \
+  ubuntu
+```
+
+这才叫“挂载磁盘”或“挂载块设备”，容器内能看到 `/dev/sdb`，并有可能对它进行：
+
+- 格式化：`mkfs.ext4 /dev/sdb`
+    
+- 分区：`fdisk /dev/sdb`
+    
+- 挂载：`mount /dev/sdb1 /mnt`
+    
+
+但这非常危险，必须明确赋权，而且默认 Docker 是不允许的。
+
+---
+
+## 🔍 总结对比
+
+|项目|bind 挂载目录（如 `-v $HOME:/workspace`）|挂载磁盘块设备（如 `--device=/dev/sdb`）|
+|---|---|---|
+|挂载的是|普通文件夹路径|原始磁盘设备（块设备）|
+|是否能格式化|❌ 不可能|✅ 有可能（取决于权限）|
+|是否能访问 `/dev/sdX`|❌ 无法访问|✅ 取决于是否加 `--device` 和 `--privileged`|
+|安全性|✅ 非常安全|❌ 高风险操作，容易搞坏系统|
+|推荐使用场景|代码共享、数据读写|容器化管理存储设备（非常小众）|
+
+---
+
+## ✅ 你现在的方式：
+
+```bash
+-v $HOME:/workspace
+```
+
+> ✅ 安全、稳定、不会影响宿主机磁盘
+
+你无需担心容器内误操作会格式化宿主机。
+
+---
+
+是否需要我演示一个极限情况的“能格式化”的容器启动方式（⚠️仅限测试）？或者你想限制容器对写权限的访问（比如只读挂载）我也可以告诉你怎么做。
+
+# Q：那为什么容器里是这样显示的
+root@d1b0254e7e17:/workspace# df -h
+Filesystem      Size  Used Avail Use% Mounted on
+overlay         424G  275G  128G  69% /
+tmpfs            64M     0   64M   0% /dev
+shm              64M     0   64M   0% /dev/shm
+/dev/sda1       1.8T  1.6T  128G  93% /workspace
+/dev/nvme0n1p3  424G  275G  128G  69% /etc/hosts
+tmpfs            16G   12K   16G   1% /proc/driver/nvidia
+tmpfs           3.2G  3.8M  3.2G   1% /run/nvidia-persistenced/socket
+udev             16G     0   16G   0% /dev/nvidia0
+tmpfs            16G     0   16G   0% /proc/asound
+tmpfs            16G     0   16G   0% /proc/acpi
+tmpfs            16G     0   16G   0% /proc/scsi
+tmpfs            16G     0   16G   0% /sys/firmware
+tmpfs            16G     0   16G   0% /sys/devices/virtual/powercap
+root@d1b0254e7e17:/workspace# 
+
+---
+---
+
+非常好的问题！你看到的 `df -h` 输出其实是**容器中可见的挂载点信息**，但理解它的意义要结合你前面的 Docker 启动命令：
+
+---
+
+## 🧩 一、你启动容器的方式（关键）：
+
+```bash
+docker run -d \
+  --name ml-lite \
+  --gpus all \
+  -p 6080:80 -p 5901:5901 \
+  -v $HOME:/workspace \
+  dorowu-ml-lite
+```
+
+这句话的 `-v $HOME:/workspace` 就是将你宿主机的整个主目录挂载到 `/workspace` 中。
+
+---
+
+## 🔍 二、你在容器中运行 `df -h` 得到：
+
+```
+/dev/sda1       1.8T  1.6T  128G  93% /workspace
+```
+
+这行的含义是：
+
+|字段|解释|
+|---|---|
+|`/dev/sda1`|宿主机磁盘的一个分区（你的 `$HOME` 所在分区）|
+|`Mounted on /workspace`|被 Docker 映射到了容器的 `/workspace`|
+|`Used 1.6T`|显示宿主机磁盘的实际使用情况|
+
+---
+
+## ✅ 所以你看到的是宿主机磁盘分区 `/dev/sda1` 挂载到了容器内 `/workspace`
+
+这完全合理、符合你的挂载命令。
+
+---
+
+## ❓那为什么容器内能看到 `/dev/sda1`？是不是不安全？
+
+其实不是，因为：
+
+1. 容器内只是看到了这个挂载点，并不等于它能“格式化” `/dev/sda1`
+    
+2. 它**并不能看到整个 `/dev/sda1` 块设备本身**，比如无法访问 `/dev/sda` 或用 `mkfs.ext4` 格式化它
+    
+3. 它只是看到了挂载点 `/workspace`，像访问普通目录一样访问它的内容
+    
+
+你可以试试：
+
+```bash
+ls /dev/sda*
+```
+
+大概率容器里根本没有 `/dev/sda1`，说明它只是通过挂载点看到的。
+
+---
+
+## ✅ 举个类比
+
+你把一块 1.8T 的硬盘 `/dev/sda1` 挂载到了宿主机 `/home`，然后 Docker 映射了 `/home` 到容器里的 `/workspace`：
+
+> 容器就像是租了你 `/workspace` 这间房，但它并没有拿到整栋楼的电源闸、房产证、地下管线的控制权。
+
+---
+
+## ✅ 结论
+
+|问题|答案|
+|---|---|
+|容器里为什么能看到 `/dev/sda1`？|因为你挂载了 `$HOME`，而它本身就是 `/dev/sda1` 上的一个路径|
+|容器是否能格式化这个分区？|❌ 不能，除非你显式挂载了块设备 + 提供特权权限|
+|这是否安全？|✅ 是的，只是 bind 挂载目录而已，不会暴露底层设备|
+
+---
+
+如你所见，一切正常且安全。如果你想验证容器里能否访问块设备 `/dev/sda1`，可以运行：
+
+```bash
+ls -l /dev/sda1
+```
+
+大概率会显示不存在。是否需要我帮你写个限制挂载为只读的版本，防止容器写操作？
+
+# Q：那容器下面这些除了workspace外的文件是存储到哪里的
+root@d1b0254e7e17:/# ls
+bin  boot  dev  etc  home  lib  lib32  lib64  libx32  media  mnt  opt  proc  root  run  sbin  srv  startup.sh  sys  tmp  usr  var  workspace
+root@d1b0254e7e17:/# 
+
+---
+---
+非常棒的问题！你问的核心是：
+
+> ✅ **除了挂载的 `/workspace` 目录外，容器中其它目录（如 `/bin`、`/etc`、`usr`）是存储在哪的？是否持久化？**
+
+---
+
+## ✅ 答案是：**其它目录都存储在容器的**写层（writable layer），属于镜像 + 改动的组合。
+
+---
+
+## 🔍 容器文件系统结构（Docker 使用的是分层的 UnionFS 文件系统）：
+
+|层|内容|存储位置|
+|---|---|---|
+|**镜像层**（read-only）|你构建或拉取的基础镜像，比如 `ubuntu`、`dorowu/...` 提供的所有系统文件（/bin、/etc 等）|存在于 Docker 本地镜像缓存里（如 `/var/lib/docker/...`）|
+|**写层**（read-write）|你在容器中创建、修改、删除的文件，比如你在 `/tmp` 新建了一个临时文件|也保存在 Docker 管理的目录中|
+|**挂载点（volume/bind mount）**|你挂载的宿主机目录，比如 `/workspace`|数据实际保存在宿主机路径，如 `$HOME`|
+
+---
+
+## 🧠 举例解释
+
+你看到的这些目录：
+
+```
+/bin /etc /usr /var ...
+```
+
+- 都来自你运行的镜像 `dorowu-ml-lite` 的镜像层（read-only）
+    
+- 容器运行时，Docker 会为它分配一个“可写层”
+    
+- 所以你可以 `apt install`、创建文件，但这些修改都只存在于该容器的写层中
+    
+
+---
+
+## ❌ 如果你删除容器（不保留卷），这些改动会消失
+
+比如你执行：
+
+```bash
+docker rm -f ml-lite
+```
+
+那这些“非挂载目录”的文件改动就都丢失了（除非你 commit 为镜像）。
+
+---
+
+## ✅ 宿主机存储位置（默认）
+
+这些内容物理上保存在：
+
+```bash
+/var/lib/docker/overlay2/
+```
+
+你可以用：
+
+```bash
+docker inspect ml-lite | grep -A 5 Overlay
+```
+
+来查看容器文件系统的实际挂载路径。
+
+---
+
+## ✅ 你挂载的 `/workspace` 是唯一持久化的部分
+
+所以你应该把代码、训练数据、模型文件等都放在 `/workspace`，避免因容器销毁而丢失。
+
+---
+
+## 📦 如果你想持久保存整个容器的状态，有两种方式：
+
+|方法|说明|
+|---|---|
+|使用卷（volume）|比 bind mount 更可管理，推荐用于数据库等|
+|保存为新镜像|用 `docker commit ml-lite my-snapshot` 把当前容器状态保存为新镜像|
+
+---
+
+## ✅ 小结
+
+|目录类型|存储位置|是否持久化|
+|---|---|---|
+|`/workspace`|宿主机磁盘（你自己挂载的）|✅ 是|
+|`/etc` `/usr` `/root` 等|Docker 的 overlay2 文件系统|❌ 默认不持久化，除非 commit|
+|`/tmp`|临时目录，跟容器生命周期绑定|❌ 不持久化|
+
+---
+
+是否需要我给你加一个自动保存的机制，比如每次退出自动把容器打包成镜像？还是帮你配置一个 volume 替代 bind mount？
+# Q：怎么增加或重新设置容器和宿主机之间的端口映射
+
+这是一个 Docker 使用中非常实用的问题：
+
+> ✅ **如何增加或重新设置容器和宿主机之间的端口映射（端口转发）？**
+
+---
+
+## 🧩 前提理解
+
+- 容器端口映射只能在 **容器创建时设置**
+    
+- 你用的是 `-p 宿主机端口:容器端口` 来设置
+    
+- 一旦容器已经创建好，Docker 本身 **不允许修改已有容器的端口映射**
+    
+
+---
+
+## ✅ 正确方法：**重新创建容器**
+
+最安全的方法是：
+
+1. 停止并删除原容器（保留镜像和挂载）
+    
+2. 用新的端口映射重新创建容器
+    
+
+---
+
+### 👇 实操示例：
+
+#### 1. 停止并删除旧容器（不会删除数据）
+
+```bash
+docker stop ml-lite
+docker rm ml-lite
+```
+
+> ⚠️ 注意：如果你挂载了 `-v $HOME:/workspace`，那么数据是在宿主机磁盘中，不会丢失。
+
+---
+
+#### 2. 重新创建容器并添加/修改端口映射
+
+例如你现在想：
+
+- 保留原有的 `-p 6080:80`
+    
+- 增加 `-p 6081:6081`
+    
+- 修改 VNC 端口为 `-p 5902:5901`
+    
+
+执行：
+
+```bash
+docker run -d \
+  --name ml-lite \
+  --gpus all \
+  -p 6080:80 \
+  -p 6081:6081 \
+  -p 5902:5901 \
+  -v $HOME:/workspace \
+  dorowu-ml-lite
+```
+
+---
+
+## 🧠 补充技巧
+
+### ✅ 查看容器当前端口映射：
+
+```bash
+docker port ml-lite
+```
+
+### ✅ 检查哪些容器正在占用哪些端口：
+
+```bash
+sudo ss -tunlp | grep docker
+```
+
+---
+
+## ❗️进阶方法（不推荐新手用）
+
+Docker 官方 **不支持在线修改端口映射**，不过你可以：
+
+- **通过 docker commit 保存镜像**
+    
+- 然后删除旧容器、用新映射重新 run
+    
+- 或者用 **docker-compose** 管理映射，修改后 `docker-compose up -d --force-recreate`
+    
+
+---
+
+## ✅ 总结表
+
+|操作|方法|
+|---|---|
+|增加或修改映射|❌ 无法直接修改，需重新 run 容器|
+|删除容器但保留数据|挂载目录如 `$HOME:/workspace` 数据不会丢失|
+|检查端口映射|`docker port 容器名`|
+|重建命令推荐|用 `docker run` 明确所有需要的 `-p` 参数|
+
+---
+
+是否需要我为你写一个 bash 脚本，自动保留参数并帮你重建容器？或者切换为更好管理的 `docker-compose.yml` 配置？
