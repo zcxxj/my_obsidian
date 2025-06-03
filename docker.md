@@ -1856,3 +1856,160 @@ Docker 官方 **不支持在线修改端口映射**，不过你可以：
 ---
 
 是否需要我为你写一个 bash 脚本，自动保留参数并帮你重建容器？或者切换为更好管理的 `docker-compose.yml` 配置？
+# Q：介绍一下查看已有容器的各种信息的命令
+当然，以下是 Docker 中**查看已有容器的各种信息的常用命令**，适合你在排查、管理、调试容器时使用：
+
+---
+
+## 🔍 一览容器命令总表
+
+|目的|命令示例|说明|
+|---|---|---|
+|查看所有容器（含停止）|`docker ps -a`|`-a` 表示“all”，列出所有容器|
+|查看运行中的容器|`docker ps`|只显示正在运行的容器|
+|查看容器详细信息|`docker inspect <容器ID或名称>`|输出超详细信息（JSON 格式）|
+|查看容器 IP 地址|`docker inspect -f '{{ .NetworkSettings.IPAddress }}' <容器名>`|提取容器的 IP（适用于 `bridge` 网络）|
+|查看容器资源使用情况|`docker stats`|类似 `top`，查看 CPU/内存/网络等实时资源使用|
+|查看容器日志（stdout/stderr）|`docker logs <容器ID或名称>`|显示容器的输出日志|
+|实时跟踪日志|`docker logs -f <容器名>`|类似 `tail -f`|
+|查看容器启动时命令和参数|`docker inspect -f '{{ .Path }} {{ .Args }}' <容器名>`|查看容器是用什么命令启动的|
+|查看容器内进程|`docker top <容器名>`|显示容器内正在运行的进程|
+|查看端口映射|`docker port <容器名>`|显示宿主机和容器端口的对应关系|
+|查看容器挂载的卷信息|`docker inspect -f '{{ .Mounts }}' <容器名>`|查看 volume 或 bind mount|
+|查看容器所属的网络|`docker inspect -f '{{ .HostConfig.NetworkMode }}' <容器名>`|常见为 `bridge`、`host`、`none` 等|
+
+---
+
+## 🧠 示例
+
+```bash
+docker ps -a
+docker inspect ml-lite
+docker logs -f ml-lite
+docker top ml-lite
+docker port ml-lite
+docker stats
+```
+
+---
+
+## 📦 容器文件系统内容查看（容器内）
+
+```bash
+docker exec -it <容器名> bash
+# 然后你可以用 ls、df、du、cat 等命令查看容器内部内容
+```
+
+---
+
+## 💡 补充提示
+
+- 你可以用 `--format` 精简输出，例如：
+    
+    ```bash
+    docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.Ports}}"
+    ```
+    
+- 如果你觉得 `inspect` 输出太冗长，也可以结合 `jq` 做 JSON 结构筛选。
+    
+
+---
+
+需要我给你做一个脚本，把这些信息都查一遍、自动整理输出吗？适合你每次调试前先跑一遍。
+# Q：详细介绍怎么把当前容器保存为镜像
+将当前运行的 Docker 容器保存为一个新的镜像（**commit 容器**），可以让你保留容器中已经安装好的软件、修改过的配置、甚至运行中下载的数据。这在你不想重装环境、节省构建时间时非常有用。
+
+---
+
+## 🧱 一、基本命令格式
+
+```bash
+docker commit [OPTIONS] 容器ID/名称 新镜像名[:标签]
+```
+
+---
+
+## ✅ 示例：保存为新镜像
+
+```bash
+docker commit ml-lite myuser/ml-with-torch:latest
+```
+
+含义：
+
+- `ml-lite` 是你当前运行的容器名
+    
+- `myuser/ml-with-torch` 是你自定义的镜像名（可以省略用户名）
+    
+- `:latest` 是标签（tag），可以是版本号，如 `v1.0`
+    
+
+---
+
+## 🧰 二、常用选项说明
+
+|参数|含义|
+|---|---|
+|`-a "作者名"`|设置作者|
+|`-m "备注说明"`|提交信息|
+|`--pause=false`|不暂停容器（默认是暂停）|
+
+🔧 示例（附作者和说明）：
+
+```bash
+docker commit -a "m24szj" -m "已安装 PyTorch + CUDA 支持" ml-lite ml-image:cu122
+```
+
+---
+
+## 🧪 三、查看刚生成的镜像
+
+```bash
+docker images
+```
+
+你会看到类似：
+
+```
+REPOSITORY        TAG       IMAGE ID       CREATED             SIZE
+ml-image          cu122     a1b2c3d4e5f6   5 seconds ago       5GB
+```
+
+---
+
+## 🧳 四、从这个镜像启动容器
+
+```bash
+docker run -it --gpus all --name new-container ml-image:cu122 bash
+```
+
+或者加上 VNC 映射等你之前的参数。
+
+---
+
+## 🎯 五、和 Dockerfile 的区别
+
+|特点|`docker commit`|`Dockerfile` 构建|
+|---|---|---|
+|速度|快|较慢（需重新安装依赖）|
+|自动化|❌ 不可复现|✅ 可复现|
+|内容|包含整个运行时状态|只按指令构建|
+|用途|保存容器当前状态|持续构建|
+
+👉 如果你是交付自己训练好的容器环境，`commit` 是方便的；  
+👉 如果你是要团队协作或 CI/CD，用 `Dockerfile` 更标准。
+
+---
+
+## ❗ 注意事项
+
+- commit 出来的镜像默认不会清除临时文件、日志、缓存等，因此体积可能大；
+    
+- 镜像不可追溯修改内容（不像 Git 那样版本可查）；
+    
+- 不建议频繁 commit 替代 Dockerfile 的规范使用。
+    
+
+---
+
+需要我帮你导出这个 commit 镜像为 `.tar` 文件、或生成对应的 Dockerfile 吗？
