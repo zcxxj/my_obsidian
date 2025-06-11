@@ -697,3 +697,110 @@ find . -maxdepth 1 -type f -exec du -h {} +
 ---
 
 如果需要，我可以帮你写一个小脚本来美化输出，或者筛选出大于某个阈值的文件。需要吗？
+# Q：怎么查看程序监听的端口
+在 Linux、Windows、macOS 中都可以查看程序监听的端口，以下是常用方法：
+
+---
+
+## 🖥️ 1. **Linux 下查看监听端口**
+
+### ✅ 使用 `ss`（Socket Stat）
+
+```bash
+ss -tulnp
+```
+
+**说明：**
+
+|参数|含义|
+|---|---|
+|`-t`|TCP 端口|
+|`-u`|UDP 端口|
+|`-l`|仅显示监听状态（Listen）|
+|`-n`|不解析服务名为端口号（直接显示数字）|
+|`-p`|显示进程（需要 root 权限）|
+
+输出示例：
+
+```
+Netid State   Recv-Q Send-Q Local Address:Port   Peer Address:Port  Process
+tcp   LISTEN  0      128    127.0.0.1:7890        0.0.0.0:*          users:(("clash",pid=1234,fd=5))
+```
+
+表示 Clash 在监听 `127.0.0.1:7890`，类型是 TCP。
+
+---
+
+### ✅ 使用 `lsof`（List Open Files）
+
+```bash
+sudo lsof -i -P -n | grep LISTEN
+```
+
+- `-i`：显示网络连接相关的文件
+    
+- `-P`：不将端口号转成服务名
+    
+- `-n`：不解析域名
+    
+- `grep LISTEN`：筛选出监听端口的行
+    
+
+---
+
+## 🖥️ 2. **Windows 下查看监听端口**
+
+### ✅ 使用 PowerShell：
+
+```powershell
+Get-NetTCPConnection -State Listen | Select-Object -Property LocalAddress,LocalPort,OwningProcess
+```
+
+然后用任务管理器查看对应 `PID` 的进程名称。
+
+---
+
+### ✅ 使用 CMD：
+
+```cmd
+netstat -ano | findstr LISTEN
+```
+
+- `-a`：显示所有连接和监听端口
+    
+- `-n`：以数字形式显示地址和端口
+    
+- `-o`：显示 PID
+    
+
+然后用任务管理器查对应 PID 的程序名。
+
+---
+
+## 🖥️ 3. **macOS 下查看监听端口**
+
+```bash
+lsof -iTCP -sTCP:LISTEN -n -P
+```
+
+或使用 `netstat`（macOS 已不推荐）：
+
+```bash
+netstat -an | grep LISTEN
+```
+
+---
+
+## 🔍 补充：只查特定端口是否被监听
+
+例如查看 7890 是否被监听：
+
+```bash
+sudo lsof -i :7890
+# 或
+ss -lntp | grep 7890
+```
+
+---
+
+是否需要我帮你筛选出 Clash Verge 的进程并检查它监听了哪些端口？你可以提供系统类型（Windows/macOS/Linux）和 Clash Verge 的运行状态。
