@@ -1,0 +1,3 @@
+# anki导入模板，在ipad的Anki中背单词时，请设置字体现实放缩为5.5倍使用
+
+indicate	<div style="font-size:4.5px; line-height:1.5;"><span style="font-size:10px;">表示</span><br>Breaks between pen strokes are denoted as "BREAK" (indicating a pen up action).<br>笔画之间的中断用“BREAK”表示（表示抬笔动作）。</div>
